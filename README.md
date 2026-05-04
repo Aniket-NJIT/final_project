@@ -108,11 +108,11 @@ The test suite covers:
 ### Docker Hub & Deployment
 This project is fully containerized and automatically built and pushed to Docker Hub upon every successful merge to the `main` branch via GitHub Actions.
 
-View the docker hub repository at: https://hub.docker.com/r/akhalate/final_calculator
+View the docker hub repository at: https://hub.docker.com/r/akhalate/final-calculator
 
 You can pull the latest built image directly from Docker Hub to run the application anywhere:
 ```bash
-docker pull akhalate/final_calculator
+docker pull akhalate/final-calculator
 ```
 
 To run the containerized application locally (Note: You must pass in your database credentials):
@@ -120,7 +120,7 @@ To run the containerized application locally (Note: You must pass in your databa
 docker run -p 8000:8000 \
   -e DATABASE_URL="postgresql://postgres:postgres@host.docker.internal:5432/calculator_db" \
   -e SECRET_KEY="your-secret-key" \
-  akhalate/final_calculator:latest
+  akhalate/final-calculator:latest
 ```
 
 ### CI/CD Pipeline Architecture
