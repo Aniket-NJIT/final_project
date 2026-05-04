@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head><title>Calculator API</title></head>
+<body>
+    <nav>
+        <a href="/">Calculator</a> | 
+        <a href="/login" id="navLogin">Login</a> | 
+        <a href="/register" id="navRegister">Register</a> | 
+        <button id="logoutBtn" style="display:none;" onclick="logout()">Logout</button>
+    </nav>
+
+    <h2>Calculator</h2>
+    <div id="calculator-section" style="display:none;">
+        <input type="number" id="numA" placeholder="Number A">
+        <select id="operation">
+            <option value="Add">Add</option>
+            <option value="Sub">Subtract</option>
+            <option value="Multiply">Multiply</option>
+            <option value="Divide">Divide</option>
+            <option value="Power">Exponentiation (a^b)</option>
+            <option value="Modulus">Modulus (a % b)</option>
+        </select>
+        <input type="number" id="numB" placeholder="Number B">
+        <button id="calcBtn" onclick="submitCalculation()">Calculate</button>
+        <button id="cancelEditBtn" onclick="cancelEdit()" style="display:none;">Cancel Edit</button>
+        
+        <h3 id="resultText"></h3>
+
+        <div id="detailsSection" style="display:none; background-color: #f0f0f0; padding: 10px; margin-top: 10px;">
+            <h4>Calculation Details</h4>
+            <p id="detailContent"></p>
+            <button onclick="document.getElementById('detailsSection').style.display='none'">Close Details</button>
+        </div>
+
+        <h3>Your Calculation History</h3>
+        <ul id="historyList"></ul>
+    </div>
+    <h3 id="loginWarning" style="color:red;">You must be logged in to use the calculator.</h3>
+
+    <script>
+        const token = localStorage.getItem('token');
+        let currentEditId = null; // Tracks if we are editing an existing calculation
+        
+        if (token) {
+            document.getElementById('calculator-section').style.display = 'block';
+            document.getElementById('loginWarning').style.display = 'none';
+            document.getElementById('navLogin').style.display = 'none';
+            document.getElementById('navRegister').style.display = 'none';
+            document.getElementById('logoutBtn').style.display = 'inline';
+            loadHistory();
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.reload();
+        }
+
+        async function fetchWithAuth(url, options = {}) {
+            options.headers = {
+                ...options.headers,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+            const response = await fetch(url, options);
+            if (response.status === 401) logout(); 
+            return response;
+        }
+
+        // Handles both ADD and EDIT logic
+        async function submitCalculation() {
+            const a = parseFloat(document.getElementById('numA').value);
+            const b = parseFloat(document.getElementById('numB').value);
+            const type = document.getElementById('operation').value;
+
+            if (isNaN(a) || isNaN(b)) {
+                alert("Please enter valid numbers.");
+                return;
+            }
+
+            let res;
+            if (currentEditId) {
+                // EDIT (PATCH) Mode
+                res = await fetchWithAuth(`/calculations/${currentEditId}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ a, b, type })
+                });
+            } else {
+                // ADD (POST) Mode
+                res = await fetchWithAuth('/calculations', {
+                    method: 'POST',
+                    body: JSON.stringify({ a, b, type }) 
+                });
+            }
+
+            const data = await res.json();
+            if(res.ok) {
+                document.getElementById('resultText').innerText = `Result: ${data.result}`;
+                cancelEdit(); // Reset form back to normal
+                loadHistory(); 
+            } else {
+                alert(data.detail || "An error occurred");
+            }
+        }
+
+        // Triggers the Edit Mode UI
+        function startEdit(id, a, b, type) {
+            currentEditId = id;
+            document.getElementById('numA').value = a;
+            document.getElementById('numB').value = b;
+            document.getElementById('operation').value = type;
+            document.getElementById('calcBtn').innerText = "Update Calculation";
+            document.getElementById('cancelEditBtn').style.display = "inline";
+        }
+
+        // Cancels Edit Mode UI
+        function cancelEdit() {
+            currentEditId = null;
+            document.getElementById('numA').value = '';
+            document.getElementById('numB').value = '';
+            document.getElementById('operation').value = 'Add';
+            document.getElementById('calcBtn').innerText = "Calculate";
+            document.getElementById('cancelEditBtn').style.display = "none";
+        }
+
+        // BROWSE
+        async function loadHistory() {
+            const res = await fetchWithAuth('/calculations');
+            const history = await res.json();
+            const list = document.getElementById('historyList');
+            list.innerHTML = '';
+            
+            history.forEach(calc => {
+                const li = document.createElement('li');
+                li.innerHTML = `${calc.a} ${calc.type} ${calc.b} = ${calc.result} 
+                    <button onclick="viewDetails(${calc.id})">View Details</button>
+                    <button onclick="startEdit(${calc.id}, ${calc.a}, ${calc.b}, '${calc.type}')">Edit</button>
+                    <button onclick="deleteCalc(${calc.id})">Delete</button>`;
+                list.appendChild(li);
+            });
+        }
+
+        // READ (Single)
+        async function viewDetails(id) {
+            const res = await fetchWithAuth(`/calculations/${id}`);
+            const data = await res.json();
+            if(res.ok) {
+                const detailsDiv = document.getElementById('detailsSection');
+                const content = document.getElementById('detailContent');
+                content.innerHTML = `<strong>ID:</strong> ${data.id} <br> 
+                                     <strong>Operation:</strong> ${data.type} <br>
+                                     <strong>Input A:</strong> ${data.a} <br>
+                                     <strong>Input B:</strong> ${data.b} <br>
+                                     <strong>Result:</strong> ${data.result}`;
+                detailsDiv.style.display = 'block';
+            }
+        }
+
+        // DELETE
+        async function deleteCalc(id) {
+            await fetchWithAuth(`/calculations/${id}`, { method: 'DELETE' });
+            loadHistory();
+            document.getElementById('detailsSection').style.display = 'none'; // Hide details if deleted
+        }
+    </script>
+</body>
+</html>
